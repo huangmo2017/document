@@ -1,0 +1,70 @@
+Server 证书生成：
+keytool -genkeypair -alias server -storetype PKCS12 -keyalg RSA -keysize 2048 -keystore server.p12 -validity 3650
+密码：123456
+
+Client 证书生成：keytool -genkeypair -alias client -storetype PKCS12 -keyalg RSA -keysize 2048 -keystore client.p12 -validity 3650
+密码：654321
+
+导出 p12 文件
+
+keytool -export -alias server -file server.crt --keystore server.p12
+keytool -export -alias client -file client.crt --keystore client.p12
+
+
+信任证书
+
+    Client 信任 Server 证书
+    将 server.crt 导入 client.p12
+    keytool -import -alias server -file server.crt -keystore client.p12
+    秘钥口令是 client.p12 的口令
+
+    Server 信任 Client 证书
+    keytool -import -alias client -file client.crt -keystore server.p12
+    秘钥口令是 server.p12 的口令
+
+Eureka Server
+    将生成的最后的 server.p12 文件放在 resources 下
+    application.yml
+
+    server:
+      port: 8761
+      ssl:
+        enabled: true
+        key-store-type: PKCS12 # type 与 keytool 的 storetype 一致
+        key-alias: server # 与 keytool 的 alias 一致
+        key-store: classpath:server.p12 # p12 文件地址
+        key-store-password: 123456 # server.p12 口令
+
+    eureka:
+      instance:
+        hostname: localhost
+        secure-port: ${server.port} # https 端口
+        secure-port-enabled: true # 是否开启 https port
+        non-secure-port-enabled: false
+        home-page-url: https://${eureka.instance.hostname}:${server.port} # https 协议
+        status-page-url: https://${eureka.instance.hostname}:${server.port} # https 协议
+      client:
+        register-with-eureka: false
+        fetch-registry: false
+        service-url:
+          defaultZone: https://${eureka.instance.hostname}:${server.port}/eureka/ # https 协议
+
+Eureka Client
+
+    Client 只在连接 Eureka Server 的时候使用 https 协议，如果要全局都使用 https，则和 Server 的 https 配置一致，只需要将配置换成 client.p12 的配置即可。
+    application.yml
+    server:
+    port: 8081
+
+    spring:
+      application:
+        name: client1
+
+    eureka:
+      client:
+        securePortEnabled: true
+        ssl:
+          key-store: client.p12
+          key-store-password: 654321
+        serviceUrl:
+          defaultZone: https://localhost:8761/eureka/
